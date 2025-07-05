@@ -5,63 +5,130 @@ namespace App\Http\Controllers;
 use App\Models\Transaction;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\Tag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
 
 class TransactionsController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    protected function applyAdvancedFilters($query, Request $request)
     {
-        $user = $request->user();
-        
-        $query = Transaction::with(['category', 'account'])
-            ->where('user_id', $user->id)
-            ->latest();
-
-        // Filtros
-        if ($request->filled('type') && in_array($request->type, ['income', 'expense'])) {
-            $query->whereHas('category', fn($q) => $q->where('type', $request->type));
+        // Búsqueda por texto (descripción o notas)
+        if ($request->filled('search')) {
+            $query->where(function($q) use ($request) {
+                $q->where('description', 'like', '%'.$request->search.'%')
+                  ->orWhere('notes', 'like', '%'.$request->search.'%');
+            });
         }
 
-        if ($request->filled('account_id')) {
-            $query->where('account_id', $request->account_id);
+        // Filtro por rango de montos
+        if ($request->filled('min_amount')) {
+            $query->where('amount', '>=', $request->min_amount);
+        }
+        if ($request->filled('max_amount')) {
+            $query->where('amount', '<=', $request->max_amount);
         }
 
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+        // Filtro por etiquetas
+        if ($request->filled('tags')) {
+            $query->whereHas('tags', function($q) use ($request) {
+                $q->whereIn('id', (array)$request->tags);
+            });
         }
 
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->whereBetween('date', [$request->start_date, $request->end_date]);
-        }
-
-        $transactions = $query->paginate(15);
-        $accounts = Account::where('user_id', $user->id)->get();
-        $categories = Category::where('user_id', $user->id)->get();
-
-        return view('transacciones', compact('transactions', 'accounts', 'categories'));
+        return $query;
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(Request $request)
+public function index(Request $request)
+{
+    $user = $request->user();
+    
+    $query = Transaction::with(['category', 'account', 'tags'])
+              ->where('user_id', $user->id)
+              ->latest();
+
+    // Filtros básicos
+    if ($request->filled('type') && in_array($request->type, ['income', 'expense'])) {
+        $query->whereHas('category', fn($q) => $q->where('type', $request->type));
+    }
+
+    if ($request->filled('account_id')) {
+        $query->where('account_id', $request->account_id);
+    }
+
+    if ($request->filled('category_id')) {
+        $query->where('category_id', $request->category_id);
+    }
+
+    // Filtros avanzados
+    if ($request->filled('search')) {
+        $query->where(function($q) use ($request) {
+            $q->where('description', 'like', '%'.$request->search.'%')
+              ->orWhere('notes', 'like', '%'.$request->search.'%');
+        });
+    }
+
+    if ($request->filled('start_date') || $request->filled('end_date')) {
+        $query->where(function($q) use ($request) {
+            if ($request->filled('start_date')) {
+                $q->where('date', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $q->where('date', '<=', $request->end_date);
+            }
+        });
+    }
+
+    if ($request->filled('min_amount')) {
+        $query->where('amount', '>=', $request->min_amount);
+    }
+
+    if ($request->filled('max_amount')) {
+        $query->where('amount', '<=', $request->max_amount);
+    }
+
+    if ($request->filled('tags')) {
+        $query->whereHas('tags', function($q) use ($request) {
+            $q->whereIn('id', (array)$request->tags);
+        });
+    }
+
+    // Obtener datos para los selects
+    $accounts = Account::where('user_id', $user->id)->get();
+    $categories = Category::where('user_id', $user->id)->get();
+    $tags = Tag::where('user_id', $user->id)->get();
+
+    // Para peticiones AJAX (si decides implementarlo)
+    if ($request->ajax()) {
+        return response()->json([
+            'html' => view('transactions.transaction-list', [
+                'transactions' => $query->paginate(15)
+            ])->render(),
+            'pagination' => $query->paginate(15)->links()->toHtml()
+        ]);
+    }
+
+    return view('transacciones', [
+        'transactions' => $query->paginate(15),
+        'accounts' => $accounts,
+        'categories' => $categories->groupBy('type'),
+        'tags' => $tags
+    ]);
+}
+
+public function create(Request $request)
     {
         $user = $request->user();
         return view('transactions.create', [
             'categories' => Category::where('user_id', $user->id)->get(),
-            'accounts' => Account::where('user_id', $user->id)->get()
+            'accounts' => Account::where('user_id', $user->id)->get(),
+            'tags' => Tag::where('user_id', $user->id)->get()
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validated = $this->validateRequest($request);
@@ -74,7 +141,12 @@ class TransactionsController extends Controller
             $transaction->user_id = $user->id;
             $transaction->save();
             
-            // Actualizar balance
+            // Sincronizar tags
+            if (isset($validated['tags'])) {
+                $transaction->tags()->sync($validated['tags']);
+            }
+            
+            // Actualizar balance de cuenta
             $account = Account::where('id', $validated['account_id'])
                 ->where('user_id', $user->id)
                 ->lockForUpdate()
@@ -90,9 +162,6 @@ class TransactionsController extends Controller
         });
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Request $request, Transaction $transaction)
     {
         if ($request->user()->id !== $transaction->user_id) {
@@ -103,13 +172,11 @@ class TransactionsController extends Controller
             'transaction' => $transaction,
             'categories' => Category::where('user_id', $request->user()->id)->get(),
             'accounts' => Account::where('user_id', $request->user()->id)->get(),
+            'tags' => Tag::where('user_id', $request->user()->id)->get(),
             'editMode' => true
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Transaction $transaction)
     {
         if ($request->user()->id !== $transaction->user_id) {
@@ -125,6 +192,9 @@ class TransactionsController extends Controller
 
             // Actualizar transacción
             $transaction->update($validated);
+            
+            // Sincronizar tags
+            $transaction->tags()->sync($validated['tags'] ?? []);
             
             // Manejar cambios de cuenta
             if ($oldAccount->id !== $validated['account_id']) {
@@ -155,9 +225,6 @@ class TransactionsController extends Controller
         });
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Request $request, Transaction $transaction)
     {
         if ($request->user()->id !== $transaction->user_id) {
@@ -177,9 +244,6 @@ class TransactionsController extends Controller
         });
     }
 
-    /**
-     * Validate the transaction request.
-     */
     protected function validateRequest(Request $request, ?Transaction $transaction = null): array
     {
         return $request->validate([
@@ -194,7 +258,12 @@ class TransactionsController extends Controller
                 Rule::exists('accounts', 'id')->where('user_id', $request->user()->id)
             ],
             'date' => 'required|date|before_or_equal:today',
-            'description' => 'nullable|string|max:255'
+            'description' => 'nullable|string|max:255',
+            'tags' => 'nullable|array',
+            'tags.*' => [
+                'required',
+                Rule::exists('tags', 'id')->where('user_id', $request->user()->id)
+            ]
         ]);
     }
 }
