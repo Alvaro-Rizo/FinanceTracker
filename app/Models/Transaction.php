@@ -1,12 +1,18 @@
 <?php
 
+// app/Models/Transaction.php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Transaction extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'type', 'amount', 'category_id', 'account_id', 
         'date', 'description', 'user_id'

@@ -1,5 +1,7 @@
 <?php
 
+// database/seeders/UserSeeder.php
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -9,10 +11,13 @@ class UserSeeder extends Seeder
 {
     public function run()
     {
-        User::create([
-            'name' => 'Usuario Prueba',
-            'email' => 'usuario@example.com',
-            'password' => bcrypt('password'),
-        ]);
+         //Asegúrate de no crear usuarios duplicados
+        User::updateOrCreate(
+            ['email' => 'usuario@example.com'],
+            [
+                'name' => 'Usuario Prueba',
+                'password' => bcrypt('password'),
+            ]
+        );
     }
 }
