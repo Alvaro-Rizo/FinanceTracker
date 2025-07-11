@@ -13,6 +13,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <!-- Select2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
     
     <!-- CSS personalizado -->
     <link rel="stylesheet" href="{{ asset('assets/css/variables.css') }}">
@@ -20,7 +25,12 @@
     <link rel="stylesheet" href="{{ asset('assets/css/components.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/utilities.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/dark-theme.css') }}">
+
     <link rel="stylesheet" href="{{ asset('assets/css/light-theme.css') }}">
+
+    <!-- Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
     @yield('styles')
         <script>
         // Pequeño script inicial para mostrar el loader
@@ -56,6 +66,12 @@
 
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery (necesario para Select2) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     
     <!-- JavaScript Core -->
     <script src="{{ asset('assets/js/core/api.js') }}"></script>
@@ -67,8 +83,13 @@
     <script src="{{ asset('assets/js/modules/sidebar.js') }}"></script>
 
 
+
     <script src="{{ asset('assets/js/modules/loader.js') }}"></script>
-    
+
+    <script src="{{ asset('assets/js/modules/pageTransitions.js') }}"></script>
+    <!-- Nuevo módulo para filtros -->
+    <script src="{{ asset('assets/js/modules/transactionFilters.js') }}"></script>
+
     @yield('scripts')
 </body>
 </html>
